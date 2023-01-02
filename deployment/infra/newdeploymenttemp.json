@@ -21,10 +21,19 @@
 		"resourceTagValues": {
 			"type": "object"
 		},
-		"listenToMessagesFromPurviewKafka": {
-			"type": "string"
-		}		
-		
+		"functionSku": {
+			"type": "string",
+			"defaultValue": "Dynamic",
+			"metadata": {
+				"description": "The tier for the Azure Function."
+			},
+			"allowedValues": [
+				"Dynamic",
+				"EP1",
+				"EP2",
+				"EP3"
+			]
+		}
 	},
 	"variables": {
 		"paramName": "[parameters('prefixName')]",
@@ -47,7 +56,6 @@
 		"openlineageNameEventHubConsumerGroup": "[replace(replace(toLower(concat(concat('consumergroup',variables('paramName')),variables('uniqueName'))),'-',''),'_','')]",
 		"openlineageKeyVaultName": "[replace(replace(toLower(concat(concat('keyvaut',variables('paramName')),variables('uniqueName'))),'-',''),'_','')]",
 		"purviewAccountName": "[parameters('purviewName')]",
-		"kafkaEndpoint":"[parameters('listenToMessagesFromPurviewKafka')]",
 		"eventHubSku": "Standard",
 		"captureEnabled": true,
 		"captureEncodingFormat": "Avro",
@@ -58,7 +66,9 @@
 		"functionStorageSecret": "functionStorageSecret",
 		"storageAccountSecret": "storageAccountSecret",
 		"OLOutputAPIKeySecretName": "Ol-Output-Api-Key",
-		"containerName": "eventhubdata"
+		"containerName": "eventhubdata",
+		"functionSkuDynamic":{"name": "Y1","tier": "Dynamic"},
+		"functionSkuElasticPremium":{"tier": "ElasticPremium","name": "[parameters('functionSku')]","family": "EP"}
 	},
 	"resources": [
 		{
@@ -103,11 +113,7 @@
 			"apiVersion": "2020-06-01",
 			"name": "[variables('hostingPlanName')]",
 			"location": "[resourceGroup().location]",
-			"sku": {
-				"name": "EP1",
-                                "tier": "ElasticPremium",
-                                "family": "EP"
-			},
+			"sku": "[if(equals(parameters('functionSku'), 'Dynamic'), variables('functionSkuDynamic'), variables('functionSkuElasticPremium'))]",
 			"tags": "[parameters('resourceTagValues')]",
 			"properties": {
 				"name": "[variables('hostingPlanName')]",
@@ -126,7 +132,8 @@
 			"tags": "[parameters('resourceTagValues')]",
 			"dependsOn": [
 				"[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
-				"[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+				"[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
+				"[resourceId('Microsoft.Insights/components', variables('applicationInsightsName'))]"
 			],
 			"properties": {
 				"serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
@@ -190,10 +197,6 @@
 							"value": "[variables('purviewAccountName')]"
 						},
 						{
-							"name":"listenToMessagesFromPurviewKafka",
-							"value":"[variables('kafkaEndpoint')]"
-						},
-						{
 							"name": "ClientID",
 							"value": "[concat('@Microsoft.KeyVault(VaultName=', variables('openlineageKeyVaultName'),';SecretName=',variables('clientidkey'),')')]"
 						},
@@ -218,7 +221,7 @@
 						"[concat('Microsoft.Web/sites/', variables('functionAppName'))]"
 					],
 					"properties": {
-						"packageUri": "http://aka.ms/APFunctions2-1"
+						"packageUri": "http://aka.ms/APFunctions2-2"
 					}
 				}
 			]
